@@ -2,56 +2,131 @@
 #![no_std]
 #![feature(abi_efiapi)]
 
+mod config;
+mod fs;
+mod page_table;
+
 extern crate alloc;
 
-use alloc::vec::Vec;
-use core::ops::DerefMut;
-use log::info;
+use alloc::boxed::Box;
+use alloc::vec;
+use core::arch::asm;
+use core::cmp::max;
+use log::{debug, info};
+use bootloader::*;
 use uefi::prelude::*;
-use uefi::proto::media::file::{File, FileAttribute, FileHandle, FileMode, RegularFile};
-use uefi::proto::media::fs::SimpleFileSystem;
-use uefi::CStr16;
+use x86_64::registers::control::{Cr0, Cr0Flags, Efer, EferFlags};
+use xmas_elf::ElfFile;
+
+static mut ENTRY: usize = 0;
 
 #[entry]
-fn main(_handle: Handle, mut system_table: SystemTable<Boot>) -> Status {
+fn main(handle: Handle, mut system_table: SystemTable<Boot>) -> Status {
     uefi_services::init(&mut system_table).unwrap();
     info!("bootloader starts working...");
     let bs = system_table.boot_services();
-    info!("boot_services address: {:p}", bs);
-    let a = 20;
-    info!("local variable a address: {:p}", &a);
+
+    // Get memory map.
+    // From uefi-rs:
+    // Note that the size of the memory map can increase any time an allocation happens,
+    // so when creating a buffer to put the memory map into, it's recommended to allocate a few extra
+    // elements worth of space above the size of the current memory map.
+    let mmap_storage = Box::leak(vec![0; bs.memory_map_size().map_size * 2].into_boxed_slice());
+    let mmap_iter = bs
+        .memory_map(mmap_storage)
+        .expect("failed to get memory map iter")
+        .1;
+    let max_phys_addr = mmap_iter
+        .map(|x| x.phys_start + x.page_count * 0x1000)
+        .max()
+        .unwrap();
+
+    // Read config.
+    let config = {
+        let mut conf = fs::open_file(bs, "\\EFI\\Boot\\boot.conf");
+        let buf = fs::load_file(bs, &mut conf);
+        config::Config::parse(buf)
+    };
+
+    // Read kernel.
+    let elf = {
+        let mut file = fs::open_file(bs, config.kernel_path);
+        let buf = fs::load_file(bs, &mut file);
+        ElfFile::new(buf).expect("failed to parse ELF")
+    };
+
+    unsafe {
+        ENTRY = elf.header.pt2.entry_point() as usize;
+    }
+
+    // Map virtual memory.
+    unsafe {
+        // remove write protect
+        Cr0::update(|f| f.remove(Cr0Flags::WRITE_PROTECT));
+        // enable protection against malicious code from non-executable memory locations
+        Efer::update(|f| f.insert(EferFlags::NO_EXECUTE_ENABLE));
+    }
+    let mut page_table = page_table::p4_table();
+    let mut frame_allocator = page_table::UEFIFrameAllocator(bs);
+    // Map kernel.
+    page_table::map_elf(&elf, &mut page_table, &mut frame_allocator).expect("failed to map ELF");
+    // Map stack.
+    page_table::map_stack(
+        config.kernel_stack_address,
+        config.kernel_stack_size,
+        &mut page_table,
+        &mut frame_allocator,
+    )
+    .expect("failed to map stack");
+    // Map physical memory.
+    page_table::map_physical_memory(
+        config.physical_memory_offset,
+        max_phys_addr,
+        &mut page_table,
+        &mut frame_allocator,
+    );
+    unsafe {
+        // recover write protect
+        Cr0::update(|f| f.insert(Cr0Flags::WRITE_PROTECT));
+    }
+
+    info!("exiting boot services");
+
     bs.stall(10_000_000);
 
-    // You must arrange for the `disable` method to be called or for this logger
-    // to be otherwise discarded before boot services are exited.
+    let (_rs, mut mmap_iter) = system_table.exit_boot_services(handle, mmap_storage).expect("Failed to exit boot services");
 
-    // log 截图放到 wiki 里面
-    Status::SUCCESS
-}
+    let stacktop = config.kernel_stack_address + config.kernel_stack_size * 0x1000;
+    let boot_info = BootInfo{ memory_map: &mut mmap_iter, physical_memory_offset: config.physical_memory_offset };
 
-// readelf
-
-fn open_file(bs: &BootServices, path: &str) -> RegularFile {
-    info!("opening file: {}", path);
-    // TODO: 测试不加 fs 报错情况
-    let fs = bs
-        .locate_protocol::<SimpleFileSystem>()
-        .expect("failed to get SimpleFileSystem");
-    let fs = unsafe { &mut *fs.get() };
-    let mut root = match fs.open_volume() {
-        Err(e) => panic!("{:?}", e),
-        Ok(dir) => dir,
-    };
-    // let mut buf = Vec::with_capacity(path.len());
-    // TODO: 查看报错
-    let mut buf = [0; 2];
-    let path_cstr = match CStr16::from_str_with_buf(path, &mut buf) {
-        Err(e) => panic!("{:?}", e),
-        Ok(str) => str,
-    };
-    // TODO: 写一个不存在的文件查看报错
-    match root.open(path_cstr, FileMode::Read, FileAttribute::empty()) {
-        Ok(handle) => unsafe { RegularFile::new(handle) },
-        Err(e) => panic!("{:?}", e),
+    unsafe {
+        jump_to_entry(stacktop, &boot_info);
     }
 }
+
+unsafe fn jump_to_entry(stack_top: u64, boot_info: *const BootInfo) -> ! {
+    asm!("mov rsp, {}; call {}", in(reg) stack_top, in(reg)ENTRY, in("rdi")boot_info);
+    loop {
+        asm!("nop");
+    }
+}
+
+// FIXME remove when project is done
+#[macro_export]
+macro_rules! dbg {
+    ($val:expr $(,)?) => {
+        match $val {
+            tmp => {
+                debug!("{} = {:#?}", stringify!($val), &tmp);
+                tmp
+            }
+        }
+    };
+    ($($val:expr),+ $(,)?) => {
+        ($($crate::dbg!($val)),+,)
+    };
+}
+
+// TODO Final
+
+
