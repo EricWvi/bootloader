@@ -15,6 +15,7 @@ use core::cmp::max;
 use log::{debug, info};
 use bootloader::*;
 use uefi::prelude::*;
+use uefi::proto::console::gop::GraphicsOutput;
 use x86_64::registers::control::{Cr0, Cr0Flags, Efer, EferFlags};
 use xmas_elf::ElfFile;
 
@@ -47,6 +48,9 @@ fn main(handle: Handle, mut system_table: SystemTable<Boot>) -> Status {
         let buf = fs::load_file(bs, &mut conf);
         config::Config::parse(buf)
     };
+
+    let graphic_info = init_graphic(bs, config.resolution);
+    debug!("graphic_info {:#?}", graphic_info);
 
     // Read kernel.
     let elf = {
@@ -92,12 +96,10 @@ fn main(handle: Handle, mut system_table: SystemTable<Boot>) -> Status {
 
     info!("exiting boot services");
 
-    bs.stall(10_000_000);
-
     let (_rs, mut mmap_iter) = system_table.exit_boot_services(handle, mmap_storage).expect("Failed to exit boot services");
 
     let stacktop = config.kernel_stack_address + config.kernel_stack_size * 0x1000;
-    let boot_info = BootInfo{ memory_map: &mut mmap_iter, physical_memory_offset: config.physical_memory_offset };
+    let boot_info = BootInfo{ memory_map: &mut mmap_iter, physical_memory_offset: config.physical_memory_offset, graphic_info };
 
     unsafe {
         jump_to_entry(stacktop, &boot_info);
@@ -111,22 +113,30 @@ unsafe fn jump_to_entry(stack_top: u64, boot_info: *const BootInfo) -> ! {
     }
 }
 
-// FIXME remove when project is done
-#[macro_export]
-macro_rules! dbg {
-    ($val:expr $(,)?) => {
-        match $val {
-            tmp => {
-                debug!("{} = {:#?}", stringify!($val), &tmp);
-                tmp
-            }
-        }
-    };
-    ($($val:expr),+ $(,)?) => {
-        ($($crate::dbg!($val)),+,)
-    };
+/// If `resolution` is some, then set graphic mode matching the resolution.
+/// Return information of the final graphic mode.
+fn init_graphic(bs: &BootServices, resolution: Option<(usize, usize)>) -> GraphicInfo {
+    let gop = bs
+        .locate_protocol::<GraphicsOutput>()
+        .expect("failed to get GraphicsOutput");
+    let gop = unsafe { &mut *gop.get() };
+
+    if let Some(resolution) = resolution {
+        let mode = gop
+            .modes()
+            .find(|mode| {
+                let info = mode.info();
+                info.resolution() == resolution
+            })
+            .expect("graphic mode not found");
+        info!("switching graphic mode");
+        gop.set_mode(&mode)
+            .expect("Failed to set graphics mode");
+    }
+    GraphicInfo {
+        mode: gop.current_mode_info(),
+        fb_addr: gop.frame_buffer().as_mut_ptr() as u64,
+        fb_size: gop.frame_buffer().size() as u64,
+    }
 }
-
-// TODO Final
-
 

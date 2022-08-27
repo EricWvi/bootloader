@@ -12,6 +12,8 @@ pub struct Config<'a> {
     pub physical_memory_offset: u64,
     /// The path of kernel ELF
     pub kernel_path: &'a str,
+    /// The resolution of graphic output
+    pub resolution: Option<(usize, usize)>,
 }
 
 const DEFAULT_CONFIG: Config = Config {
@@ -19,6 +21,7 @@ const DEFAULT_CONFIG: Config = Config {
     kernel_stack_size: 512,
     physical_memory_offset: 0xffff_9000_0000_0000,
     kernel_path: "\\EFI\\canyon\\kernel.elf",
+    resolution: None,
 };
 
 impl<'a> Config<'a> {
@@ -50,6 +53,12 @@ impl<'a> Config<'a> {
                 self.physical_memory_offset = r16();
             }
             "kernel_path" => self.kernel_path = value,
+            "resolution" => {
+                let mut iter = value.split('x');
+                let x = iter.next().unwrap().parse::<usize>().unwrap();
+                let y = iter.next().unwrap().parse::<usize>().unwrap();
+                self.resolution = Some((x, y));
+            }
             _ => warn!("undefined config key: {}", key),
         }
     }

@@ -6,6 +6,7 @@ build_path := target/$(target)/$(MODE)
 ESP := $(build_path)/esp
 OVMF := OVMF.fd
 
+# -serial mon:stdio -nographic
 run: FORCE
 	cargo build
 	mkdir -p target/x86_64-unknown-uefi/debug/esp/EFI/Boot
@@ -18,7 +19,6 @@ run: FORCE
 	-drive format=raw,file=fat:rw:target/x86_64-unknown-uefi/debug/esp \
 	-m 4G \
 	-device isa-debug-exit \
-    -serial mon:stdio -nographic \
 	-net none
 
 FORCE:
