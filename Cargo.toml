@@ -18,8 +18,8 @@ edition = "2021"
 # `ignore-logger-error` cargo feature. If you do so, logging errors
 # will be ignored by `uefi-rs` instead.
 # uefi = { version = "0.15.0", features = ["ignore-logger-error"] }
-uefi = { version = "0.16", features = ["alloc", "logger", "exts"] }
+uefi = { version = "0.16.0", features = ["alloc", "logger", "exts"] }
 uefi-services = "0.13"
-log = "0.4"
+log = "0.4.17"
 x86_64 = "0.14.10"
 xmas-elf = "0.8.0"
