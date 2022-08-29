@@ -13,7 +13,7 @@ use alloc::vec;
 use core::arch::asm;
 use core::cmp::max;
 use log::{debug, info};
-use bootloader::*;
+use bootloader_lib::*;
 use uefi::prelude::*;
 use uefi::proto::console::gop::GraphicsOutput;
 use x86_64::registers::control::{Cr0, Cr0Flags, Efer, EferFlags};
