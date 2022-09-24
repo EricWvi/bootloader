@@ -1,12 +1,15 @@
 #![no_std]
 
+extern crate alloc;
+
+use alloc::vec::Vec;
 use uefi::proto::console::gop::ModeInfo;
 use uefi::table::boot::MemoryDescriptor;
 
 /// information that bootloader passes to the kernel
 #[repr(C)]
-pub struct BootInfo<'a, 'b> {
-    pub memory_map: &'a mut dyn ExactSizeIterator<Item=&'b MemoryDescriptor>,
+pub struct BootInfo {
+    pub memory_map: Vec<&'static MemoryDescriptor>,
     /// The offset where the physical memory is mapped at in the virtual address space.
     pub physical_memory_offset: u64,
     /// The graphic output information

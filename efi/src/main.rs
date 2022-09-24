@@ -10,6 +10,7 @@ extern crate alloc;
 
 use alloc::boxed::Box;
 use alloc::vec;
+use alloc::vec::Vec;
 use core::arch::asm;
 use core::cmp::max;
 use log::{debug, info};
@@ -37,6 +38,7 @@ fn main(handle: Handle, mut system_table: SystemTable<Boot>) -> Status {
         .memory_map(mmap_storage)
         .expect("failed to get memory map iter")
         .1;
+    let mmap_len = mmap_iter.len();
     let max_phys_addr = mmap_iter
         .map(|x| x.phys_start + x.page_count * 0x1000)
         .max()
@@ -96,10 +98,17 @@ fn main(handle: Handle, mut system_table: SystemTable<Boot>) -> Status {
 
     info!("exiting boot services");
 
+    let mut memory_map = Vec::with_capacity(mmap_len * 2);
+
     let (_rs, mut mmap_iter) = system_table.exit_boot_services(handle, mmap_storage).expect("Failed to exit boot services");
+    // NOTE: alloc & log can no longer be used
+
+    for desc in mmap_iter {
+        memory_map.push(desc);
+    }
 
     let stacktop = config.kernel_stack_address + config.kernel_stack_size * 0x1000;
-    let boot_info = BootInfo{ memory_map: &mut mmap_iter, physical_memory_offset: config.physical_memory_offset, graphic_info };
+    let boot_info = BootInfo{ memory_map: memory_map, physical_memory_offset: config.physical_memory_offset, graphic_info };
 
     unsafe {
         jump_to_entry(stacktop, &boot_info);
