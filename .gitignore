@@ -1,3 +1,4 @@
 /target
-bin/target
+efi/target
 .idea
+Cargo.lock
