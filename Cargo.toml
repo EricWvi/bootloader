@@ -7,4 +7,4 @@ edition = "2021"
 name = "bootloader_lib"
 
 [dependencies]
-uefi = { version = "0.16.0"}
+uefi = { version = "0.18.0"}

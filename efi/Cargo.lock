@@ -94,9 +94,9 @@ dependencies = [
 
 [[package]]
 name = "uefi"
-version = "0.16.1"
+version = "0.18.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "6e69e94934e3a8fb9d652408385a1ce5199bbe31df2baba1973bcd1ba2c973fd"
+checksum = "07b87700863d65dd4841556be3374d8d4f9f8dbb577ad93a39859e70b3b91f35"
 dependencies = [
  "bitflags",
  "log",
@@ -106,9 +106,9 @@ dependencies = [
 
 [[package]]
 name = "uefi-macros"
-version = "0.7.1"
+version = "0.9.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "f618e22256b6ecc841fe2f24b5978fa47221b5006712da01236b5407c8474866"
+checksum = "275f054a1d9fd7e43a2ce91cc24298a87b281117dea8afc120ae95faa0e96b94"
 dependencies = [
  "proc-macro2",
  "quote",
@@ -117,9 +117,9 @@ dependencies = [
 
 [[package]]
 name = "uefi-services"
-version = "0.13.1"
+version = "0.15.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "4e7ce6ab4c7b45257f379b851ad82d25a51359748e9c5950c6ef31ad5eb2f9ba"
+checksum = "74f6e28d165193fb5da5230faec576f0be75c71ce6d171556a2775b3673094b4"
 dependencies = [
  "cfg-if",
  "log",
@@ -152,9 +152,9 @@ dependencies = [
 
 [[package]]
 name = "xmas-elf"
-version = "0.8.0"
+version = "0.9.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "8d29b4d8e7beaceb4e77447ba941a7600d23d0319ab52da0461abea214832d5a"
+checksum = "f820cc767d65b32eef9d7ce7201448f28501c59edc55d47b71375fea579fc2df"
 dependencies = [
  "zero",
 ]

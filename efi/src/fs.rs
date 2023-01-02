@@ -8,9 +8,10 @@ use uefi::CStr16;
 
 pub fn open_file(bs: &BootServices, path: &str) -> RegularFile {
     info!("opening file: {}", path);
-    let fs = bs
-        .locate_protocol::<SimpleFileSystem>()
-        .expect("failed to get SimpleFileSystem");
+    let fs = unsafe {
+        bs.locate_protocol::<SimpleFileSystem>()
+            .expect("failed to get SimpleFileSystem")
+    };
     let fs = unsafe { &mut *fs.get() };
     let mut root = match fs.open_volume() {
         Err(e) => panic!("{:?}", e),
